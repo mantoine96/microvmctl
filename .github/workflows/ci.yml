@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Build, test and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      # Builds the package (running its tests), clippy with warnings denied,
+      # and rustfmt; also evaluates the test VM configurations.
+      - run: nix flake check --print-build-logs
+
+  test-vms:
+    name: Build test VMs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: experimental-features = nix-command flakes
+      # The guests cannot boot here (no KVM for cloud-hypervisor), but
+      # building their runners catches microvm.nix or nixpkgs updates that
+      # would break `test-vms up`.
+      - run: nix build --print-build-logs --no-link .#mvmctl-test-a .#mvmctl-test-b .#mvmctl-test-c

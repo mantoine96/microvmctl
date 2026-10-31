@@ -1,5 +1,7 @@
 # microvmctl
 
+[![CI](https://github.com/mantoine96/microvmctl/actions/workflows/ci.yml/badge.svg)](https://github.com/mantoine96/microvmctl/actions/workflows/ci.yml)
+
 Manage and observe [microvm.nix](https://github.com/microvm-nix/microvm.nix) VMs
 running on [cloud-hypervisor](https://www.cloudhypervisor.org/),
 without juggling `systemctl`, `journalctl`, `curl --unix-socket` and `readlink`.
