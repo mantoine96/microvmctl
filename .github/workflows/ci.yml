@@ -26,8 +26,8 @@ jobs:
             runner: ubuntu-26.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
         with:
           extra_nix_config: experimental-features = nix-command flakes
       # Builds the package (running its tests), clippy with warnings denied,
@@ -40,8 +40,8 @@ jobs:
     # The test guests are only defined for x86_64-linux.
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v7
-      - uses: cachix/install-nix-action@v31
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: cachix/install-nix-action@448cde739abec1eaf0646249e3d25bb8d9bc7702 # v31.11.2
         with:
           extra_nix_config: experimental-features = nix-command flakes
       # The guests cannot boot here (no KVM for cloud-hypervisor), but
