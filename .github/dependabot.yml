@@ -1,0 +1,45 @@
+# Version updates wait 7 days after a release (`cooldown`), so a broken or
+# compromised release has time to be yanked before it lands here. Security
+# updates are exempt by design: Dependabot never applies cooldown to them.
+# Passing PRs merge automatically, see workflows/dependabot-auto-merge.yml.
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
+    # One PR for compatible bumps; breaking (major) bumps stay separate so a
+    # failure points at one dependency.
+    groups:
+      cargo:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        update-types: [major, minor, patch]
+
+  # flake.lock inputs (nixpkgs, microvm.nix); one PR per input.
+  - package-ecosystem: nix
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: chore
+      include: scope
