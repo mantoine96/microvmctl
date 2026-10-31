@@ -44,6 +44,17 @@ in
         size = 64;
       }
     ];
+
+    # Interactive access for `microvmctl console`;
+    # `b` deliberately lacks it, to exercise the error message.
+    microvm.cloud-hypervisor.extraArgs = [
+      "--console"
+      "pty"
+    ];
+    # NOTE: passwordless root is acceptable only because this guest has no
+    # network: its console pty is reachable by host root only.
+    users.users.root.hashedPassword = "";
+    services.getty.autologinUser = "root";
   };
 
   mvmctl-test-b = mkTestVm "mvmctl-test-b" { };

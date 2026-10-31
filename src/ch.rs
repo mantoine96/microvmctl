@@ -164,6 +164,7 @@ pub struct VmConfig {
     pub net: Option<Vec<Net>>,
     pub fs: Option<Vec<Fs>>,
     pub balloon: Option<Balloon>,
+    pub console: Console,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -211,6 +212,15 @@ pub struct Fs {
 #[serde(default)]
 pub struct Balloon {
     pub size: u64,
+}
+
+/// `mode` is `Off`, `Null`, `Tty`, `File`, `Pty` or `Socket`. In `Pty`
+/// mode cloud-hypervisor fills `file` with the allocated `/dev/pts/N`.
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Console {
+    pub mode: String,
+    pub file: Option<PathBuf>,
 }
 
 /// `vm.counters`: device id -> counter name -> value.

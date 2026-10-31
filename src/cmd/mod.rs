@@ -1,4 +1,5 @@
 pub mod api;
+pub mod console;
 pub mod control;
 pub mod list;
 pub mod logs;
