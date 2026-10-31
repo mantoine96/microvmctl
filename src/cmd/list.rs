@@ -4,10 +4,8 @@ use std::time::Duration;
 use anyhow::Result;
 use serde::Serialize;
 
-use crate::ch::VmInfo;
 use crate::fmt::{self, opt};
-use crate::host;
-use crate::vm;
+use crate::metrics;
 
 #[derive(Serialize)]
 struct Entry {
@@ -25,38 +23,22 @@ struct Entry {
 }
 
 pub fn run(state_dir: &Path, json: bool) -> Result<()> {
-    let neighbors = host::neighbors();
-    let entries: Vec<Entry> = super::snapshot(vm::discover(state_dir)?)?
+    let samples = metrics::collect(state_dir)?;
+    let notes: Vec<String> = samples.iter().map(metrics::Sample::notes).collect();
+    let entries: Vec<Entry> = samples
         .into_iter()
-        .map(|s| {
-            let vm_state = s
-                .api
-                .as_ref()
-                .ok()
-                .and_then(|c| c.get::<VmInfo>("vm.info").ok())
-                .map(|i| i.state);
-            let args = s.args.as_ref();
-            Entry {
-                name: s.vm.name.clone(),
-                state: s.state(vm_state.as_deref()),
-                pid: s.unit.main_pid,
-                uptime_secs: s.unit.uptime().map(|d| d.as_secs()),
-                vcpus: args.and_then(|a| a.vcpus),
-                memory: args.and_then(|a| a.memory),
-                rss: s.rss,
-                cpu_time_secs: s.unit.cpu_usage_nsec.map(|n| n / 1_000_000_000),
-                restarts: s.unit.restarts,
-                address: args
-                    .into_iter()
-                    .flat_map(|a| &a.nets)
-                    .filter_map(|n| n.mac.as_deref())
-                    .find_map(|mac| {
-                        host::addresses_for(&neighbors, mac)
-                            .first()
-                            .map(|n| n.ip.clone())
-                    }),
-                outdated: s.vm.outdated(),
-            }
+        .map(|s| Entry {
+            name: s.name,
+            state: s.state,
+            pid: s.pid,
+            uptime_secs: s.uptime.map(|d| d.as_secs()),
+            vcpus: s.vcpus,
+            memory: s.memory,
+            rss: s.rss,
+            cpu_time_secs: s.cpu_time.map(|d| d.as_secs()),
+            restarts: s.restarts,
+            address: s.address,
+            outdated: s.outdated,
         })
         .collect();
 
@@ -67,7 +49,8 @@ pub fn run(state_dir: &Path, json: bool) -> Result<()> {
 
     let rows: Vec<Vec<String>> = entries
         .iter()
-        .map(|e| {
+        .zip(notes)
+        .map(|(e, notes)| {
             vec![
                 e.name.clone(),
                 e.state.clone(),
@@ -78,14 +61,7 @@ pub fn run(state_dir: &Path, json: bool) -> Result<()> {
                 opt(e.rss, fmt::bytes),
                 opt(e.cpu_time_secs, |s| fmt::duration(Duration::from_secs(s))),
                 opt(e.address.clone(), |a| a),
-                [
-                    e.outdated.then_some("outdated"),
-                    (e.restarts > 0).then_some("restarted"),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join(","),
+                notes,
             ]
         })
         .collect();

@@ -2,6 +2,7 @@ mod ch;
 mod cmd;
 mod fmt;
 mod host;
+mod metrics;
 mod systemd;
 mod vm;
 

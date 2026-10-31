@@ -2,13 +2,12 @@ use std::collections::HashMap;
 use std::io::{IsTerminal, Write};
 use std::path::Path;
 use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Result;
 
-use crate::ch::{self, Counters, Unavailable};
 use crate::fmt::{self, opt};
-use crate::{host, vm};
+use crate::metrics::{self, Sample};
 
 #[derive(clap::Args)]
 pub struct Args {
@@ -20,78 +19,33 @@ pub struct Args {
     iterations: u64,
 }
 
-struct Sample {
-    at: Instant,
-    state: String,
-    cpu_usec: Option<u64>,
-    rss: Option<u64>,
-    io: Option<ch::IoTotals>,
-    denied: bool,
-}
-
-fn sample_all(state_dir: &Path) -> Result<Vec<(String, Sample)>> {
-    Ok(super::snapshot(vm::discover(state_dir)?)?
-        .into_iter()
-        .map(|s| {
-            let cgroup = s
-                .unit
-                .control_group
-                .as_deref()
-                .filter(|_| s.unit.is_running());
-            let sample = Sample {
-                at: Instant::now(),
-                state: s.unit.summary().to_string(),
-                cpu_usec: cgroup.and_then(host::cgroup_cpu_usec),
-                rss: s.rss,
-                io: s
-                    .api
-                    .as_ref()
-                    .ok()
-                    .and_then(|c| c.get::<Counters>("vm.counters").ok())
-                    .map(|c| ch::io_totals(&c)),
-                denied: matches!(s.api, Err(Unavailable::PermissionDenied)),
-            };
-            (s.vm.name, sample)
-        })
-        .collect())
+fn by_name(samples: Vec<Sample>) -> HashMap<String, Sample> {
+    samples.into_iter().map(|s| (s.name.clone(), s)).collect()
 }
 
 pub fn run(state_dir: &Path, args: Args) -> Result<()> {
     let delay = Duration::from_secs_f64(args.delay.max(0.1));
     let interactive = std::io::stdout().is_terminal();
-    let mut previous: HashMap<String, Sample> = sample_all(state_dir)?.into_iter().collect();
+    let mut previous = by_name(metrics::collect(state_dir)?);
 
     for iteration in 1.. {
         thread::sleep(delay);
-        let current = sample_all(state_dir)?;
-        let denied = current.iter().any(|(_, s)| s.denied);
+        let current = metrics::collect(state_dir)?;
+        let denied = current.iter().any(|s| s.api_denied);
 
         let rows: Vec<Vec<String>> = current
             .iter()
-            .map(|(name, now)| {
-                let prev = previous.get(name);
-                let secs = prev.map(|p| now.at.duration_since(p.at).as_secs_f64());
-                let per_sec = |f: fn(&ch::IoTotals) -> u64| -> String {
-                    match (prev.and_then(|p| p.io), now.io, secs) {
-                        (Some(a), Some(b), Some(s)) => {
-                            fmt::rate(f(&b).saturating_sub(f(&a)) as f64 / s)
-                        }
-                        _ => "-".into(),
-                    }
-                };
-                let cpu = match (prev.and_then(|p| p.cpu_usec), now.cpu_usec, secs) {
-                    (Some(a), Some(b), Some(s)) => Some(b.saturating_sub(a) as f64 / (s * 1e4)),
-                    _ => None,
-                };
+            .map(|now| {
+                let r = metrics::rates(previous.get(&now.name), now);
                 vec![
-                    name.clone(),
+                    now.name.clone(),
                     now.state.clone(),
-                    opt(cpu, |c| format!("{c:.1}")),
+                    opt(r.cpu, |c| format!("{c:.1}")),
                     opt(now.rss, fmt::bytes),
-                    per_sec(|t| t.disk_read),
-                    per_sec(|t| t.disk_write),
-                    per_sec(|t| t.net_rx),
-                    per_sec(|t| t.net_tx),
+                    opt(r.disk_read, fmt::rate),
+                    opt(r.disk_write, fmt::rate),
+                    opt(r.net_rx, fmt::rate),
+                    opt(r.net_tx, fmt::rate),
                 ]
             })
             .collect();
@@ -118,7 +72,7 @@ pub fn run(state_dir: &Path, args: Args) -> Result<()> {
         }
         out.flush()?;
 
-        previous = current.into_iter().collect();
+        previous = by_name(current);
         if args.iterations != 0 && iteration >= args.iterations {
             break;
         }

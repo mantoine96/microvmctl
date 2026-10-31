@@ -1,3 +1,4 @@
+use std::fmt::Write as _;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::time::Duration;
@@ -31,6 +32,13 @@ struct Status<'a> {
 }
 
 pub fn run(vm: &Vm, json: bool) -> Result<()> {
+    print!("{}", report(vm, json)?);
+    Ok(())
+}
+
+/// The `status` output, as text or JSON; the TUI shows the same text.
+pub fn report(vm: &Vm, json: bool) -> Result<String> {
+    let mut out = String::new();
     let snap = super::snapshot(vec![vm.clone()])?.remove(0);
     let generation = vm.booted().or_else(|| vm.current());
     let virtiofsd = match &generation {
@@ -76,8 +84,7 @@ pub fn run(vm: &Vm, json: bool) -> Result<()> {
     };
 
     if json {
-        println!("{}", serde_json::to_string_pretty(&status)?);
-        return Ok(());
+        return Ok(serde_json::to_string_pretty(&status)? + "\n");
     }
 
     let unit = &snap.unit;
@@ -88,10 +95,14 @@ pub fn run(vm: &Vm, json: bool) -> Result<()> {
     if let Some(pid) = unit.main_pid {
         header += &format!("  (pid {pid}, {} restarts)", unit.restarts);
     }
-    println!("{header}");
+    let _ = writeln!(out, "{header}");
 
-    let field = |k: &str, v: String| println!("  {k:<11} {v}");
-    field(
+    macro_rules! field {
+        ($k:expr, $v:expr $(,)?) => {
+            let _ = writeln!(out, "  {:<11} {}", $k, $v);
+        };
+    }
+    field!(
         "hypervisor",
         status
             .hypervisor
@@ -100,22 +111,22 @@ pub fn run(vm: &Vm, json: bool) -> Result<()> {
     );
     // `booted` only exists while running; a stopped VM boots `current` next.
     if let Some(booted) = &generation {
-        field("generation", booted.display().to_string());
+        field!("generation", booted.display().to_string());
         if let Some(system) = Vm::system_of(booted) {
-            field("system", system.display().to_string());
+            field!("system", system.display().to_string());
         }
     }
     if status.outdated
         && let Some(current) = vm.current()
     {
         let target = Vm::system_of(&current).unwrap_or(current);
-        field(
+        field!(
             "pending",
             format!("{} (restart to apply)", target.display()),
         );
     }
     if let Some(flake) = &status.flake {
-        field("flake", flake.clone());
+        field!("flake", flake.clone());
     }
 
     let args = snap.args.as_ref();
@@ -153,16 +164,16 @@ pub fn run(vm: &Vm, json: bool) -> Result<()> {
     if let Some(cpu) = unit.cpu_usage_nsec {
         resources.push(format!("{} CPU", fmt::duration(Duration::from_nanos(cpu))));
     }
-    field("resources", resources.join(", "));
+    field!("resources", resources.join(", "));
     if let Some(v) = &status.virtiofsd {
-        field("virtiofsd", v.summary().to_string());
+        field!("virtiofsd", v.summary().to_string());
     }
     let addresses: Vec<String> = status
         .addresses
         .iter()
         .map(|n| format!("{} ({})", n.ip, n.state.join(",").to_lowercase()))
         .collect();
-    field(
+    field!(
         "address",
         if addresses.is_empty() {
             "unknown (not in host neighbor table)".into()
@@ -172,16 +183,24 @@ pub fn run(vm: &Vm, json: bool) -> Result<()> {
     );
 
     match (&info, &snap.api) {
-        (Some(info), _) => print_devices(vm, info, counters.as_ref().unwrap_or(&Counters::new())),
+        (Some(info), _) => print_devices(
+            &mut out,
+            vm,
+            info,
+            counters.as_ref().unwrap_or(&Counters::new()),
+        ),
         (None, Err(Unavailable::PermissionDenied)) => {
-            println!("\n  (run as root for VM state, disks, network devices and I/O counters)")
+            let _ = writeln!(
+                out,
+                "\n  (run as root for VM state, disks, network devices and I/O counters)"
+            );
         }
         _ => {}
     }
-    Ok(())
+    Ok(out)
 }
 
-fn print_devices(vm: &Vm, info: &VmInfo, counters: &Counters) {
+fn print_devices(out: &mut String, vm: &Vm, info: &VmInfo, counters: &Counters) {
     let counter = |id: &Option<String>, key: &str| {
         id.as_ref()
             .and_then(|id| counters.get(id))
@@ -213,8 +232,9 @@ fn print_devices(vm: &Vm, info: &VmInfo, counters: &Counters) {
         })
         .collect();
     if !disks.is_empty() {
-        println!();
-        println!(
+        let _ = writeln!(out);
+        let _ = writeln!(
+            out,
             "{}",
             indent(&fmt::table(
                 &["DISK", "PATH", "MODE", "SIZE", "ALLOC", "READ", "WRITTEN"],
@@ -239,8 +259,9 @@ fn print_devices(vm: &Vm, info: &VmInfo, counters: &Counters) {
         })
         .collect();
     if !nets.is_empty() {
-        println!();
-        println!(
+        let _ = writeln!(out);
+        let _ = writeln!(
+            out,
             "{}",
             indent(&fmt::table(&["NET", "TAP", "MAC", "RX", "TX"], &nets))
         );
@@ -260,12 +281,16 @@ fn print_devices(vm: &Vm, info: &VmInfo, counters: &Counters) {
         })
         .collect();
     if !shares.is_empty() {
-        println!();
-        println!("{}", indent(&fmt::table(&["FS", "TAG", "SOCKET"], &shares)));
+        let _ = writeln!(out);
+        let _ = writeln!(
+            out,
+            "{}",
+            indent(&fmt::table(&["FS", "TAG", "SOCKET"], &shares))
+        );
     }
 
     if let Some(b) = &info.config.balloon {
-        println!("\n  balloon     {}", fmt::bytes(b.size));
+        let _ = writeln!(out, "\n  balloon     {}", fmt::bytes(b.size));
     }
 }
 
