@@ -27,10 +27,10 @@ writeShellApplication {
       cat <<EOF
     Usage: test-vms <command>
 
-      up        build the test VMs and install them on $host (not started)
-      down      stop the test VMs and remove their state directories
-      ctl ARGS  run the freshly built microvmctl on $host as root
-      list      names of the test VMs
+      up          build the test VMs and install them on $host (not started)
+      down        stop the test VMs and remove their state directories
+      ctl [ARGS]  run the freshly built microvmctl on $host as root (no ARGS: TUI)
+      list        names of the test VMs
 
     Set MVMCTL_TEST_HOST to target another host.
     EOF
@@ -61,8 +61,12 @@ writeShellApplication {
         shift
         ctl="$(build_and_copy microvmctl)"
         # ssh joins arguments into one remote shell line; re-quote them so
-        # JSON bodies and the like survive.
-        ssh -t "$host" sudo "$ctl/bin/microvmctl" "$(printf '%q ' "$@")"
+        # JSON bodies and the like survive. With no arguments, printf would
+        # still emit an empty quoted word, turning "open the TUI" into an
+        # empty subcommand.
+        args=""
+        if (($# > 0)); then args="$(printf '%q ' "$@")"; fi
+        ssh -t "$host" sudo "$ctl/bin/microvmctl" "$args"
         ;;
       list)
         printf '%s\n' "''${vms[@]}"
