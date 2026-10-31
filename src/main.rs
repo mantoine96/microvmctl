@@ -14,7 +14,7 @@ use cmd::control::Transition;
 /// Manage and observe microvm.nix cloud-hypervisor VMs.
 ///
 /// Read-only commands work unprivileged. Commands that talk to the
-/// cloud-hypervisor API socket (pause, resume, console, api, and the device details of
+/// cloud-hypervisor API socket (pause, resume, console, ssh, api, and the device details of
 /// status/top) need root, because microvm.nix creates the socket owner-only.
 #[derive(Parser)]
 #[command(version)]
@@ -66,6 +66,11 @@ enum Command {
     Top(cmd::top::Args),
     /// Attach to the guest console (needs `--console pty`), Ctrl-] to detach.
     Console { vm: String },
+    /// SSH into the guest over vsock, without needing guest networking.
+    Ssh(cmd::ssh::Args),
+    /// ssh ProxyCommand helper used by `microvmctl ssh`.
+    #[command(hide = true)]
+    VsockProxy(cmd::ssh::ProxyArgs),
     /// Call a raw cloud-hypervisor API endpoint, e.g. `vm.info` or `vm.counters`.
     Api(cmd::api::Args),
 }
@@ -87,5 +92,7 @@ fn main() -> Result<()> {
         Command::Top(args) => cmd::top::run(dir, args),
         Command::Api(args) => cmd::api::run(dir, args),
         Command::Console { vm } => cmd::console::run(&vm::find(dir, &vm)?),
+        Command::Ssh(args) => cmd::ssh::run(dir, args),
+        Command::VsockProxy(args) => cmd::ssh::proxy(args),
     }
 }

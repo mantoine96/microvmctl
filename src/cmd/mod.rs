@@ -3,6 +3,7 @@ pub mod console;
 pub mod control;
 pub mod list;
 pub mod logs;
+pub mod ssh;
 pub mod status;
 pub mod top;
 

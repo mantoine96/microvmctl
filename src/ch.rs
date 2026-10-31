@@ -165,6 +165,7 @@ pub struct VmConfig {
     pub fs: Option<Vec<Fs>>,
     pub balloon: Option<Balloon>,
     pub console: Console,
+    pub vsock: Option<Vsock>,
 }
 
 #[derive(Debug, Default, Deserialize, Serialize)]
@@ -221,6 +222,15 @@ pub struct Balloon {
 pub struct Console {
     pub mode: String,
     pub file: Option<PathBuf>,
+}
+
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct Vsock {
+    pub cid: u64,
+    /// Host-side socket of cloud-hypervisor's vsock multiplexer, relative
+    /// to the VM's working directory unless absolute.
+    pub socket: PathBuf,
 }
 
 /// `vm.counters`: device id -> counter name -> value.

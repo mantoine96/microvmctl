@@ -45,16 +45,25 @@ in
       }
     ];
 
-    # Interactive access for `microvmctl console`;
-    # `b` deliberately lacks it, to exercise the error message.
+    # Interactive access for `microvmctl console` and `microvmctl ssh`;
+    # `b` deliberately has neither, to exercise their error messages.
     microvm.cloud-hypervisor.extraArgs = [
       "--console"
       "pty"
     ];
+    microvm.vsock = {
+      cid = 4201;
+      ssh.enable = true;
+    };
     # NOTE: passwordless root is acceptable only because this guest has no
-    # network: its console pty is reachable by host root only.
+    # network: its console pty and vsock socket are reachable by host root only.
     users.users.root.hashedPassword = "";
     services.getty.autologinUser = "root";
+    services.openssh.settings = {
+      PermitRootLogin = "yes";
+      PermitEmptyPasswords = "yes";
+    };
+    security.pam.services.sshd.allowNullPassword = true;
   };
 
   mvmctl-test-b = mkTestVm "mvmctl-test-b" { };
