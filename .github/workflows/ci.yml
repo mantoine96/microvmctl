@@ -15,20 +15,30 @@ concurrency:
 
 jobs:
   check:
-    name: Build, test and lint
-    runs-on: ubuntu-latest
+    name: Build, test and lint (${{ matrix.system }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - system: x86_64-linux
+            runner: ubuntu-26.04
+          - system: aarch64-linux
+            runner: ubuntu-26.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: experimental-features = nix-command flakes
       # Builds the package (running its tests), clippy with warnings denied,
-      # and rustfmt; also evaluates the test VM configurations.
+      # and rustfmt for the runner's own system; also evaluates the test VM
+      # configurations.
       - run: nix flake check --print-build-logs
 
   test-vms:
     name: Build test VMs
-    runs-on: ubuntu-latest
+    # The test guests are only defined for x86_64-linux.
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
       - uses: cachix/install-nix-action@v31
