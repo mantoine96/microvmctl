@@ -25,7 +25,7 @@ pub fn run(state_dir: &Path, args: Args) -> Result<()> {
         .unwrap_or_else(|| if args.data.is_some() { "PUT" } else { "GET" }.into())
         .to_uppercase();
     let resp =
-        Client::new(vm.api_socket()).request(&method, &args.endpoint, args.data.as_deref())?;
+        Client::for_vm(&vm, "api")?.request(&method, &args.endpoint, args.data.as_deref())?;
 
     let body = match serde_json::from_str::<serde_json::Value>(&resp.body) {
         Ok(json) => serde_json::to_string_pretty(&json)?,

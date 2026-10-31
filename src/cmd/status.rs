@@ -195,6 +195,12 @@ pub fn report(vm: &Vm, json: bool) -> Result<String> {
                 "\n  (run as root for VM state, disks, network devices and I/O counters)"
             );
         }
+        (None, Err(Unavailable::OtherHypervisor(h))) => {
+            let _ = writeln!(
+                out,
+                "\n  (disks, network devices and I/O counters need cloud-hypervisor; this VM runs {h})"
+            );
+        }
         _ => {}
     }
     Ok(out)

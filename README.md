@@ -71,6 +71,23 @@ Rather than asking you to loosen that, microvmctl splits its work:
 `start`, `stop` and `restart` go through `systemctl`, so its usual polkit rules apply.
 In practice, `sudo microvmctl` is the comfortable way to run the TUI.
 
+## cloud-hypervisor gets full support, other backends the basics
+
+Anything built on systemd and the state directory works for every microvm.nix backend.
+Anything that talks to the hypervisor uses cloud-hypervisor's REST API,
+so it refuses VMs on other backends with a clear message.
+
+| Works for any backend | cloud-hypervisor only |
+|---|---|
+| `list`: state, PID, uptime, RSS, CPU time, `outdated`, restarts | vCPU and memory columns |
+| `logs`, `start`, `stop`, `restart` | `pause`, `resume`, `console`, `ssh`, `api` |
+| `status`: generation, NixOS system, flake, virtiofsd | `status`: disks, network, shares, paused state |
+| `top` and the TUI: CPU% and RSS | Disk and network rates |
+
+This has been tested with cloud-hypervisor and qemu.
+Firecracker, crosvm, kvmtool, stratovirt, alioth and vfkit should behave like qemu here,
+but have not been tried.
+
 ## Commands
 
 | Command | What it does |
@@ -173,14 +190,15 @@ $ nix flake check   # build, tests, clippy and rustfmt
 ### Test against real VMs without touching the host's config
 
 cloud-hypervisor needs KVM, so test guests run on a microvm.nix host rather than locally.
-The flake defines two small throwaway guests:
+The flake defines three small throwaway guests:
 `mvmctl-test-a` (virtiofs store, a data volume, pty console and vsock SSH)
-and `mvmctl-test-b` (erofs store disk, deliberately without console or vsock).
+`mvmctl-test-b` (erofs store disk, deliberately without console or vsock)
+and `mvmctl-test-c` (qemu, to exercise the cloud-hypervisor-only guard).
 Neither has networking.
 
 ```console
 $ test-vms up                                   # build, copy and install them on the host
-$ test-vms ctl start mvmctl-test-a mvmctl-test-b
+$ test-vms ctl start mvmctl-test-a mvmctl-test-b mvmctl-test-c
 $ test-vms ctl                                  # the TUI, freshly built, as root on the host
 $ test-vms down                                 # stop them and remove their state
 ```

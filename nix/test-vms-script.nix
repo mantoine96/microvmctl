@@ -13,7 +13,7 @@ writeShellApplication {
     # host's NixOS config changes and the VMs never autostart.
     host="''${MVMCTL_TEST_HOST:-10.100.10.18}"
     state_dir=/var/lib/microvms
-    vms=(mvmctl-test-a mvmctl-test-b)
+    vms=(mvmctl-test-a mvmctl-test-b mvmctl-test-c)
     flake="$(git rev-parse --show-toplevel)"
 
     build_and_copy() {

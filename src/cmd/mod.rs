@@ -38,7 +38,7 @@ pub fn snapshot(vms: Vec<Vm>) -> Result<Vec<Snapshot>> {
                 },
                 rss: pid.and_then(host::rss),
                 api: if pid.is_some() {
-                    Client::probe(&vm.api_socket())
+                    Client::probe(&vm)
                 } else {
                     Err(Unavailable::NotRunning)
                 },

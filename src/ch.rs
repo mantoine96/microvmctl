@@ -3,12 +3,14 @@
 use std::collections::BTreeMap;
 use std::io::{self, BufRead, BufReader, Write};
 use std::os::unix::net::UnixStream;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+
+use crate::vm::Vm;
 
 const TIMEOUT: Duration = Duration::from_secs(5);
 
@@ -22,12 +24,18 @@ pub struct Response {
     pub body: String,
 }
 
+/// The only backend whose control socket speaks this REST API. microvm.nix
+/// names every backend's socket `<name>.sock`, so qemu's QMP socket sits at
+/// the same path and must not be mistaken for it.
+pub const HYPERVISOR: &str = "cloud-hypervisor";
+
 /// Why the API could not be reached, so callers can degrade gracefully
 /// (e.g. `list` without root) instead of failing outright.
 #[derive(Debug, PartialEq)]
 pub enum Unavailable {
     NotRunning,
     PermissionDenied,
+    OtherHypervisor(String),
 }
 
 impl Client {
@@ -37,8 +45,19 @@ impl Client {
         }
     }
 
-    pub fn probe(socket: &Path) -> std::result::Result<Self, Unavailable> {
-        match UnixStream::connect(socket) {
+    /// The API of `vm`, for a command that cannot work without it.
+    pub fn for_vm(vm: &Vm, command: &str) -> Result<Self> {
+        check_hypervisor(vm.hypervisor().as_deref(), &vm.name, command)?;
+        Ok(Self::new(vm.api_socket()))
+    }
+
+    /// The API of `vm` if it is usable, for views that degrade without it.
+    pub fn probe(vm: &Vm) -> std::result::Result<Self, Unavailable> {
+        if let Some(h) = vm.hypervisor().filter(|h| h != HYPERVISOR) {
+            return Err(Unavailable::OtherHypervisor(h));
+        }
+        let socket = vm.api_socket();
+        match UnixStream::connect(&socket) {
             Ok(_) => Ok(Self::new(socket)),
             Err(e) if e.kind() == io::ErrorKind::PermissionDenied => {
                 Err(Unavailable::PermissionDenied)
@@ -91,6 +110,20 @@ impl Client {
             );
         }
         Ok(resp)
+    }
+}
+
+/// An unknown hypervisor (no `share/microvm/hypervisor`) is given the
+/// benefit of the doubt; a known other one gets a clear refusal instead of
+/// a protocol error from talking HTTP to, say, QMP.
+fn check_hypervisor(hypervisor: Option<&str>, vm: &str, command: &str) -> Result<()> {
+    match hypervisor {
+        Some(h) if h != HYPERVISOR => bail!(
+            "`{command}` needs cloud-hypervisor's API, but {vm} runs {h}.\n\n\
+             For {h} VMs, microvmctl supports list, status, logs, top (CPU and RSS),\n\
+             start, stop and restart."
+        ),
+        _ => Ok(()),
     }
 }
 
@@ -268,6 +301,19 @@ mod tests {
         let resp = read_response(raw.as_bytes()).unwrap();
         assert_eq!(resp.status, 200);
         assert_eq!(resp.body, "{\"state\":\"Paused\"}");
+    }
+
+    #[test]
+    fn refuses_other_hypervisors_only() {
+        let err = check_hypervisor(Some("qemu"), "legacy", "pause")
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.starts_with("`pause` needs cloud-hypervisor's API, but legacy runs qemu."),
+            "{err}"
+        );
+        assert!(check_hypervisor(Some("cloud-hypervisor"), "osprey", "pause").is_ok());
+        assert!(check_hypervisor(None, "osprey", "pause").is_ok());
     }
 
     #[test]

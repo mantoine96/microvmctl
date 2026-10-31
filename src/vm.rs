@@ -68,8 +68,11 @@ impl Vm {
         read_trimmed(&self.dir.join("flake"))
     }
 
+    /// Read from the running generation if any: a host rebuild may have
+    /// switched `current` to a different hypervisor than the one running.
     fn share_file(&self, name: &str) -> Option<String> {
-        read_trimmed(&self.dir.join("current/share/microvm").join(name))
+        let generation = self.booted().or_else(|| self.current())?;
+        read_trimmed(&generation.join("share/microvm").join(name))
     }
 }
 

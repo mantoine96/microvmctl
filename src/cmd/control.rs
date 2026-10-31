@@ -28,7 +28,7 @@ pub fn transition(vm: &Vm, transition: Transition) -> Result<()> {
         Transition::Pause => ("vm.pause", "Paused"),
         Transition::Resume => ("vm.resume", "Running"),
     };
-    let client = Client::new(vm.api_socket());
+    let client = Client::for_vm(vm, endpoint.trim_start_matches("vm."))?;
     if client.get::<VmInfo>("vm.info")?.state == target {
         eprintln!("{} is already {}", vm.name, target.to_lowercase());
         return Ok(());

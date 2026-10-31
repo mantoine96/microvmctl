@@ -1,7 +1,8 @@
 # Throwaway microvm.nix guests for exercising microvmctl against real
 # microvm@ units. They mirror the two storage layouts seen in practice:
 # `a` shares the host store over virtiofs and has a data volume (like
-# falcon), `b` boots from an erofs store disk (like osprey). No network, so
+# falcon), `b` boots from an erofs store disk (like osprey), `c` runs qemu
+# instead of cloud-hypervisor. No network, so
 # deploying them never touches the host's bridge or LAN.
 { nixpkgs, microvm }:
 
@@ -67,4 +68,10 @@ in
   };
 
   mvmctl-test-b = mkTestVm "mvmctl-test-b" { };
+
+  # qemu exposes QMP at the same `<name>.sock` path as cloud-hypervisor's
+  # API, which exercises microvmctl's hypervisor guard.
+  mvmctl-test-c = mkTestVm "mvmctl-test-c" {
+    microvm.hypervisor = nixpkgs.lib.mkForce "qemu";
+  };
 }

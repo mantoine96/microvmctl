@@ -26,7 +26,7 @@ pub fn run(state_dir: &Path, args: Args) -> Result<()> {
         None => (None, args.target.as_str()),
     };
     let vm = vm::find(state_dir, name)?;
-    let info: VmInfo = Client::new(vm.api_socket()).get("vm.info")?;
+    let info: VmInfo = Client::for_vm(&vm, "ssh")?.get("vm.info")?;
     let Some(vsock) = info.config.vsock else {
         bail!(
             "{name} has no vsock device, so there is no network-independent way to reach its sshd.\n\n\

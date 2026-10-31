@@ -14,7 +14,7 @@ use crate::vm::Vm;
 const DETACH: u8 = 0x1d;
 
 pub fn run(vm: &Vm) -> Result<()> {
-    let info: VmInfo = Client::new(vm.api_socket()).get("vm.info")?;
+    let info: VmInfo = Client::for_vm(vm, "console")?.get("vm.info")?;
     let console = &info.config.console;
     if console.mode != "Pty" {
         bail!(
