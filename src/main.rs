@@ -4,6 +4,7 @@ mod fmt;
 mod host;
 mod metrics;
 mod systemd;
+mod tui;
 mod vm;
 
 use std::path::PathBuf;
@@ -17,6 +18,8 @@ use cmd::control::Transition;
 /// Read-only commands work unprivileged. Commands that talk to the
 /// cloud-hypervisor API socket (pause, resume, console, ssh, api, and the device details of
 /// status/top) need root, because microvm.nix creates the socket owner-only.
+///
+/// Without a command, opens the interactive TUI.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -25,11 +28,13 @@ struct Cli {
     state_dir: PathBuf,
 
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
 enum Command {
+    /// Interactive k9s-style view (the default without a command).
+    Tui,
     /// List VMs with their state and resource usage.
     #[command(visible_alias = "ls")]
     List {
@@ -79,7 +84,8 @@ enum Command {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let dir = &cli.state_dir;
-    match cli.command {
+    match cli.command.unwrap_or(Command::Tui) {
+        Command::Tui => tui::run(dir),
         Command::List { json } => cmd::list::run(dir, json),
         Command::Status { vm, json } => cmd::status::run(&vm::find(dir, &vm)?, json),
         Command::Logs(args) => cmd::logs::run(dir, args),
