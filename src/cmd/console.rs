@@ -5,7 +5,7 @@ use std::thread;
 
 use anyhow::{Context, Result, anyhow, bail};
 use rustix::fs::{FlockOperation, flock};
-use rustix::termios::{OptionalActions, Termios, tcgetattr, tcsetattr};
+use rustix::termios::{OptionalActions, QueueSelector, Termios, tcflush, tcgetattr, tcsetattr};
 
 use crate::ch::{Client, VmInfo};
 use crate::vm::Vm;
@@ -43,6 +43,10 @@ pub fn run(vm: &Vm) -> Result<()> {
     // The pty's line discipline would otherwise echo and line-buffer
     // input on the host side, on top of the guest's own handling.
     make_raw(&pty)?;
+    // Output buffered while nobody was attached can include terminal
+    // queries (e.g. cursor position from the login script); replaying them
+    // makes the local terminal answer into the guest shell as garbage.
+    tcflush(&pty, QueueSelector::IFlush)?;
 
     let _terminal = RawTerminal::enter()?;
     eprint!(
