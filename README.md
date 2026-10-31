@@ -208,4 +208,4 @@ the host's existing `microvm@` template picks up
 any `/var/lib/microvms/<name>/current/bin/microvm-run`.
 That exercises the real units, socket permissions and journal
 without changing the host's NixOS configuration, and the VMs never autostart.
-The target host defaults to `10.100.10.18`; set `MVMCTL_TEST_HOST` to change it.
+Set `MVMCTL_TEST_HOST` to the host's ssh destination, e.g. `export MVMCTL_TEST_HOST=hypervisor-host`.

@@ -11,7 +11,7 @@ writeShellApplication {
     # VMs: the host's own microvm@ template picks up any
     # /var/lib/microvms/<name>/current/bin/microvm-run, so nothing in the
     # host's NixOS config changes and the VMs never autostart.
-    host="''${MVMCTL_TEST_HOST:-10.100.10.18}"
+    host="''${MVMCTL_TEST_HOST:-}"
     state_dir=/var/lib/microvms
     vms=(mvmctl-test-a mvmctl-test-b mvmctl-test-c)
     flake="$(git rev-parse --show-toplevel)"
@@ -32,9 +32,14 @@ writeShellApplication {
       ctl [ARGS]  run the freshly built microvmctl on $host as root (no ARGS: TUI)
       list        names of the test VMs
 
-    Set MVMCTL_TEST_HOST to target another host.
+    MVMCTL_TEST_HOST must name the microvm.nix host (ssh destination).
     EOF
     }
+
+    if [[ -z "$host" && "''${1:-}" =~ ^(up|down|ctl)$ ]]; then
+      echo "test-vms: set MVMCTL_TEST_HOST to the microvm.nix host to deploy to" >&2
+      exit 1
+    fi
 
     case "''${1:-}" in
       up)
